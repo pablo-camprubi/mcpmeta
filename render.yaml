@@ -2,9 +2,9 @@ services:
   - type: web
     name: meta-ads-mcp
     runtime: python
-    plan: starter  # or 'free' for free tier
+    plan: free  # Use free tier
     region: oregon  # Choose your preferred region
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: python -m meta_ads_mcp --transport streamable-http --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
