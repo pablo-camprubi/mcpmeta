@@ -15,6 +15,5 @@ services:
         sync: false  # Required: Your Meta Developer App Secret
       - key: META_ACCESS_TOKEN
         sync: false  # Optional: Direct access token if you already have one
-    healthCheckPath: /mcp
     autoDeploy: true
 
