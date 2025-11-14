@@ -9,12 +9,12 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: PIPEBOARD_API_TOKEN
-        sync: false  # Set this in Render dashboard as a secret
       - key: META_APP_ID
-        sync: false  # Optional: Set if using custom Meta app
+        sync: false  # Required: Your Meta Developer App ID
       - key: META_APP_SECRET
-        sync: false  # Optional: Set if using custom Meta app
+        sync: false  # Required: Your Meta Developer App Secret
+      - key: META_ACCESS_TOKEN
+        sync: false  # Optional: Direct access token if you already have one
     healthCheckPath: /mcp
     autoDeploy: true
 
