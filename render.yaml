@@ -1,19 +1,19 @@
 services:
   - type: web
     name: meta-ads-mcp
-    runtime: python
-    plan: free  # Use free tier
-    region: oregon  # Choose your preferred region
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && pip install -e .
     startCommand: python -m meta_ads_mcp --transport streamable-http --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11"
       - key: META_APP_ID
-        sync: false  # Required: Your Meta Developer App ID
+        value: "1600502367599734"
       - key: META_APP_SECRET
-        sync: false  # Required: Your Meta Developer App Secret
+        value: "6cafab7d8c8a0f14317be3d6d2507fa3"
       - key: META_ACCESS_TOKEN
-        sync: false  # Optional: Direct access token if you already have one
+        sync: false
     autoDeploy: true
 
