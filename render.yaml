@@ -8,7 +8,7 @@ services:
     startCommand: python -m meta_ads_mcp --transport streamable-http --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.0"
       - key: META_APP_ID
         value: "1600502367599734"
       - key: META_APP_SECRET
