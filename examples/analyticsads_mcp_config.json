@@ -1,0 +1,20 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp-config.json",
+  "mcpServers": {
+    "meta-ads-deployed": {
+      "url": "https://YOUR-DEPLOYMENT-URL.up.railway.app/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_PIPEBOARD_TOKEN_HERE"
+      },
+      "description": "Deployed Meta Ads MCP Server"
+    }
+  },
+  "_instructions": {
+    "1": "Replace YOUR-DEPLOYMENT-URL with your actual Railway/Render/Fly.io URL",
+    "2": "Replace YOUR_PIPEBOARD_TOKEN_HERE with your token from pipeboard.co/api-tokens",
+    "3": "For Claude Desktop: Save to ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)",
+    "4": "For Cursor: Save to ~/.cursor/mcp.json",
+    "5": "For other MCP clients: Check their documentation for config file location"
+  }
+}
+
