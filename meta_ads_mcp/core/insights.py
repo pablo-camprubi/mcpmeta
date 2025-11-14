@@ -70,8 +70,14 @@ async def get_insights(object_id: str, access_token: Optional[str] = None,
         else:
             return json.dumps({"error": "Custom time_range must contain both 'since' and 'until' keys in YYYY-MM-DD format"}, indent=2)
     else:
-        # Use preset date range
-        params["date_preset"] = time_range
+        # Map user-friendly date presets to Meta API valid values
+        date_preset_mapping = {
+            "this_week": "this_week_mon_today",
+            "last_week": "last_week_mon_sun",
+        }
+        # Use the mapping if available, otherwise use the original value
+        mapped_preset = date_preset_mapping.get(time_range, time_range)
+        params["date_preset"] = mapped_preset
     
     if breakdown:
         params["breakdowns"] = breakdown
