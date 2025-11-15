@@ -384,7 +384,7 @@ async def oauth_token(request: Request):
 oauth_routes = [
     Route('/.well-known/oauth-authorization-server', oauth_discovery, methods=['GET']),
     Route('/oauth/authorize', oauth_authorize, methods=['GET', 'POST']),
-    Route('/oauth/facebook/callback', oauth_callback, methods=['GET']),
+    Route('/oauth/facebook/callback', facebook_callback, methods=['GET']),
     Route('/oauth/token', oauth_token, methods=['POST']),
 ]
 
