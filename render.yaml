@@ -15,5 +15,7 @@ services:
         value: "6cafab7d8c8a0f14317be3d6d2507fa3"
       - key: META_ACCESS_TOKEN
         sync: false
+      - key: PUBLIC_URL
+        value: "https://meta-ads-mcp-rike.onrender.com"
     autoDeploy: true
 

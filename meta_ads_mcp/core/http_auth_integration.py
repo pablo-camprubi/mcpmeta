@@ -304,4 +304,12 @@ def setup_starlette_middleware(app):
         except Exception as e:
             logger.error(f"Failed to add AuthInjectionMiddleware to Starlette app: {e}", exc_info=True)
     else:
-        logger.debug("AuthInjectionMiddleware already present in Starlette app's middleware stack.") 
+        logger.debug("AuthInjectionMiddleware already present in Starlette app's middleware stack.")
+    
+    # Add OAuth routes to the app
+    try:
+        from .oauth_provider import add_oauth_routes_to_app
+        add_oauth_routes_to_app(app)
+        logger.info("OAuth provider routes added to Starlette app successfully.")
+    except Exception as e:
+        logger.error(f"Failed to add OAuth routes to Starlette app: {e}", exc_info=True) 
