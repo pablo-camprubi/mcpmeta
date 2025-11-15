@@ -49,8 +49,14 @@ class StreamableHTTPHandler:
             elif auth_config['auth_method'] == 'custom_meta_app':
                 return self.handle_custom_app_request(auth_config, request_body)
             else:
-                return self.handle_unauthenticated_request(request_body)
+                # For OAuth to work, we need to reject at HTTP level, not just JSON-RPC
+                # This will be handled by the HTTP transport layer to return 401
+                from mcp.server.auth import UnauthorizedError
+                raise UnauthorizedError("Authentication required - please use OAuth")
                 
+        except UnauthorizedError:
+            # Re-raise UnauthorizedError so HTTP transport can handle it
+            raise
         except Exception as e:
             logger.error(f"Error handling request: {e}")
             return {
