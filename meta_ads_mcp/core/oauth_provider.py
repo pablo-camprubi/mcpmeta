@@ -61,7 +61,9 @@ async def oauth_discovery(request: Request):
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
-        "scopes_supported": ["mcp:tools", "ads_read", "ads_management", "business_management"]
+        "scopes_supported": ["mcp:tools", "ads_read", "ads_management", "business_management"],
+        # PKCE without client registration - no registration_endpoint needed
+        "require_request_uri_registration": False
     }
     
     logger.info("OAuth discovery endpoint called")
