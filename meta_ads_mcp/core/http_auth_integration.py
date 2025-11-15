@@ -251,6 +251,18 @@ class AuthInjectionMiddleware(BaseHTTPMiddleware):
         logger.debug(f"HTTP Auth Middleware: Processing request to {request.url.path}")
         logger.debug(f"HTTP Auth Middleware: Request headers: {list(request.headers.keys())}")
         
+        # Skip authentication for OAuth endpoints
+        oauth_paths = [
+            "/.well-known/oauth-authorization-server",
+            "/oauth/authorize",
+            "/oauth/facebook/callback",
+            "/oauth/token",
+            "/health"
+        ]
+        if request.url.path in oauth_paths:
+            logger.debug(f"Skipping auth for OAuth endpoint: {request.url.path}")
+            return await call_next(request)
+        
         # Extract both types of tokens for dual-header authentication
         auth_token = FastMCPAuthIntegration.extract_token_from_headers(dict(request.headers))
         pipeboard_token = FastMCPAuthIntegration.extract_pipeboard_token_from_headers(dict(request.headers))
@@ -267,6 +279,22 @@ class AuthInjectionMiddleware(BaseHTTPMiddleware):
         
         if not auth_token and not pipeboard_token:
             logger.warning("HTTP Auth Middleware: No authentication tokens found in headers")
+            # Return 401 to trigger OAuth flow in clients
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32600,
+                        "message": "Authentication required",
+                        "data": "Please authenticate using OAuth"
+                    }
+                },
+                status_code=401,
+                headers={
+                    "WWW-Authenticate": "Bearer"
+                }
+            )
         
         try:
             response = await call_next(request)
