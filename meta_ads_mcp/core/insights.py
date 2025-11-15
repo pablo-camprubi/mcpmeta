@@ -238,6 +238,30 @@ async def get_performance_overview(object_id: str, access_token: Optional[str] =
     return await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
 
 
+# Backward compatibility: keep get_insights for existing tests/integrations
+async def get_insights(object_id: str, access_token: Optional[str] = None, 
+                      time_range: Union[str, Dict[str, str]] = "maximum", breakdown: str = "", 
+                      level: str = "ad", limit: int = 25, after: str = "") -> str:
+    """
+    Get performance insights for a campaign, ad set, ad or account.
+    
+    DEPRECATED: This function is kept for backward compatibility. 
+    For new code, use specific tools like get_cpc, get_ctr, get_conversions, etc.
+    
+    Args:
+        object_id: ID of the campaign, ad set, ad or account
+        access_token: Meta API access token (optional - will use cached token if not provided)
+        time_range: Either a preset time range string or a dictionary with "since" and "until" dates
+        breakdown: Optional breakdown dimension
+        level: Level of aggregation (ad, adset, campaign, account)
+        limit: Maximum number of results to return per page (default: 25)
+        after: Pagination cursor to get the next set of results
+    """
+    # Return all fields for backward compatibility
+    fields = "account_id,account_name,campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,impressions,clicks,spend,cpc,cpm,ctr,reach,frequency,actions,action_values,conversions,unique_clicks,cost_per_action_type"
+    return await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
+
+
 
 
 
