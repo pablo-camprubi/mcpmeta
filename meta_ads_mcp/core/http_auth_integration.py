@@ -255,6 +255,7 @@ class AuthInjectionMiddleware(BaseHTTPMiddleware):
         oauth_paths = [
             "/.well-known/oauth-authorization-server",
             "/oauth/authorize",
+            "/oauth/register",
             "/oauth/facebook/callback",
             "/oauth/token",
             "/health"

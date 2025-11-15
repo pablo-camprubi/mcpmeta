@@ -57,13 +57,12 @@ async def oauth_discovery(request: Request):
         "issuer": base_url,
         "authorization_endpoint": f"{base_url}/oauth/authorize",
         "token_endpoint": f"{base_url}/oauth/token",
+        "registration_endpoint": f"{base_url}/oauth/register",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
-        "scopes_supported": ["mcp:tools", "ads_read", "ads_management", "business_management"],
-        # PKCE without client registration - no registration_endpoint needed
-        "require_request_uri_registration": False
+        "scopes_supported": ["mcp:tools", "ads_read", "ads_management", "business_management"]
     }
     
     logger.info("OAuth discovery endpoint called")
@@ -269,6 +268,42 @@ async def facebook_callback(request: Request):
         }, status_code=500)
 
 
+async def oauth_register(request: Request):
+    """OAuth 2.0 Dynamic Client Registration endpoint (RFC 7591)
+    
+    For PKCE flows, this returns static client credentials without actual registration.
+    The client_id is deterministic based on the client_name for consistency.
+    """
+    try:
+        # Parse request body
+        body = await request.body()
+        client_metadata = json.loads(body)
+        
+        logger.info(f"Client registration requested: {client_metadata.get('client_name', 'unknown')}")
+        
+        # Generate deterministic client_id based on client_name for consistency across restarts
+        client_name = client_metadata.get('client_name', 'mcp-client')
+        client_id = hashlib.sha256(client_name.encode('utf-8')).hexdigest()[:16]
+        
+        # For PKCE, we don't need a client_secret (token_endpoint_auth_method: "none")
+        # Return the client metadata with a generated client_id
+        response_data = {
+            "client_id": client_id,
+            "client_id_issued_at": int(datetime.now().timestamp()),
+            **client_metadata  # Return all provided metadata
+        }
+        
+        logger.info(f"Client registration successful: {client_id}")
+        return JSONResponse(response_data, status_code=201)
+        
+    except Exception as e:
+        logger.error(f"Error in oauth_register: {e}", exc_info=True)
+        return JSONResponse({
+            "error": "invalid_request",
+            "error_description": str(e)
+        }, status_code=400)
+
+
 async def oauth_token(request: Request):
     """OAuth 2.0 Token endpoint
     
@@ -386,6 +421,7 @@ async def oauth_token(request: Request):
 oauth_routes = [
     Route('/.well-known/oauth-authorization-server', oauth_discovery, methods=['GET']),
     Route('/oauth/authorize', oauth_authorize, methods=['GET', 'POST']),
+    Route('/oauth/register', oauth_register, methods=['POST']),
     Route('/oauth/facebook/callback', facebook_callback, methods=['GET']),
     Route('/oauth/token', oauth_token, methods=['POST']),
 ]
@@ -407,6 +443,7 @@ def add_oauth_routes_to_app(app: Starlette):
     logger.info("OAuth endpoints available:")
     logger.info("  - GET  /.well-known/oauth-authorization-server")
     logger.info("  - POST /oauth/authorize")
+    logger.info("  - POST /oauth/register")
     logger.info("  - GET  /oauth/facebook/callback")
     logger.info("  - POST /oauth/token")
 
