@@ -187,6 +187,9 @@ def setup_fastmcp_http_auth(mcp_server):
     Args:
         mcp_server: FastMCP server instance to configure
     """
+    print("=" * 80)
+    print("🚀 STARTING FASTMCP HTTP AUTH SETUP")
+    print("=" * 80)
     logger.info("Setting up FastMCP HTTP authentication integration")
     
     # 1. Patch FastMCP's run method to ensure our get_current_access_token patch is applied
@@ -324,13 +327,20 @@ def setup_starlette_middleware(app):
     Args:
         app: Starlette app instance
     """
+    print("🔧 setup_starlette_middleware() called!")
+    print(f"   App type: {type(app)}")
+    print(f"   App is None: {app is None}")
+    
     if not app:
         logger.error("Cannot setup Starlette middleware, app is None.")
+        print("❌ APP IS NONE - CANNOT ADD MIDDLEWARE")
         return
 
     # Add MCP connection-level auth middleware FIRST (runs before others)
+    print("🔒 Attempting to import MCPAuthMiddleware...")
     try:
         from .mcp_auth_middleware import MCPAuthMiddleware
+        print("✅ MCPAuthMiddleware imported successfully")
         
         # Check if already added
         mcp_auth_added = any(m.cls == MCPAuthMiddleware for m in app.user_middleware)
