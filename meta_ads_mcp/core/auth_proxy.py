@@ -241,6 +241,14 @@ def root():
 
 def run_proxy(host="0.0.0.0", port=10000):
     """Run the OAuth proxy server"""
+    print("\n" + "=" * 80)
+    print("🔒 META ADS MCP - OAUTH AUTHENTICATION PROXY")
+    print("=" * 80)
+    print(f"Proxy listening on: {host}:{port}")
+    print(f"Backend MCP server: {BACKEND_URL}")
+    print("✅ Bearer token authentication ENFORCED for /mcp and /sse")
+    print("=" * 80 + "\n")
+    
     logger.info("=" * 80)
     logger.info("🔒 META ADS MCP - OAUTH AUTHENTICATION PROXY")
     logger.info("=" * 80)
@@ -249,7 +257,13 @@ def run_proxy(host="0.0.0.0", port=10000):
     logger.info("✅ Bearer token authentication ENFORCED for /mcp and /sse")
     logger.info("=" * 80)
     
-    app.run(host=host, port=port, threaded=True)
+    try:
+        print(f"🚀 Starting Flask proxy server on {host}:{port}...")
+        app.run(host=host, port=port, threaded=True, use_reloader=False)
+    except Exception as e:
+        print(f"❌ Flask proxy failed to start: {e}")
+        logger.error(f"Flask proxy failed to start: {e}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":

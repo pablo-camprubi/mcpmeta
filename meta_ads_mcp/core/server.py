@@ -462,13 +462,19 @@ def main():
                 """Run FastMCP backend on localhost with custom port"""
                 import uvicorn
                 
+                print(f"\n🔧 BACKEND THREAD: Starting FastMCP backend...")
+                print(f"   Target: 127.0.0.1:{mcp_backend_port}")
+                
                 # Get the Starlette app from FastMCP
                 if args.sse_response:
                     backend_app = mcp_server.sse_app()
+                    print(f"   App type: SSE app")
                 else:
                     backend_app = mcp_server.streamable_http_app()
+                    print(f"   App type: Streamable HTTP app")
                 
                 logger.info(f"Starting FastMCP backend on 127.0.0.1:{mcp_backend_port}")
+                print(f"🚀 Calling uvicorn.run() with host=127.0.0.1, port={mcp_backend_port}\n")
                 
                 # Run uvicorn on the backend port (localhost only)
                 uvicorn.run(
@@ -478,12 +484,18 @@ def main():
                     log_level="info"
                 )
             
-            mcp_thread = threading.Thread(target=run_mcp_backend, daemon=True)
+            print(f"🔧 Creating backend thread...")
+            mcp_thread = threading.Thread(target=run_mcp_backend, daemon=True, name="FastMCP-Backend")
             mcp_thread.start()
+            print(f"✅ Backend thread started (thread name: {mcp_thread.name})")
             
             # Wait a moment for FastMCP backend to start
+            print(f"⏳ Waiting 3 seconds for FastMCP backend to start...")
             time.sleep(3)
+            print(f"✅ Backend should be ready")
             logger.info("FastMCP backend started successfully")
+            
+            print(f"\n🎯 Now starting OAuth proxy on public port...")
             
             # Start the OAuth proxy on the public port (this blocks)
             run_proxy(host=args.host, port=original_port)
