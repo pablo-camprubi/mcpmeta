@@ -386,40 +386,44 @@ def main():
                 
                 def patched_run(transport="stdio", **kwargs):
                     if transport == "streamable-http":
-                        # Create the app first
-                        import uvicorn
-                        from starlette.applications import Starlette
-                        from starlette.routing import Mount
+                        # Add OAuth routes by patching the app creation
+                        logger.info("Patching app creation to inject OAuth routes")
                         
-                        # Get the appropriate app based on response format
+                        # Store original app methods
                         if mcp_server.settings.json_response:
-                            app = mcp_server.streamable_http_app()
+                            original_app_method = mcp_server.streamable_http_app
+                            method_name = "streamable_http_app"
                         else:
-                            app = mcp_server.sse_app()
+                            original_app_method = mcp_server.sse_app
+                            method_name = "sse_app"
                         
-                        if app:
-                            logger.info(f"Got app instance: {type(app)}")
-                            # Add OAuth routes directly to the app's router
-                            for route in oauth_routes:
-                                app.router.routes.append(route)
-                                logger.info(f"Added OAuth route: {route.path}")
+                        def patched_app_method():
+                            # Get the original app
+                            app = original_app_method()
                             
-                            print(f"✅ OAuth routes added ({len(oauth_routes)} endpoints)")
+                            if app:
+                                logger.info(f"Patching {method_name} to add OAuth routes")
+                                # Add OAuth routes to this app
+                                for route in oauth_routes:
+                                    # Check if route already exists to avoid duplicates
+                                    if not any(r.path == route.path for r in app.router.routes):
+                                        app.router.routes.insert(0, route)  # Insert at start for priority
+                                        logger.info(f"Added OAuth route: {route.path}")
+                                
+                                print(f"✅ OAuth routes added ({len(oauth_routes)} endpoints)")
+                            else:
+                                logger.error(f"Could not get app from {method_name}")
                             
-                            # Start uvicorn directly with the patched app
-                            config = uvicorn.Config(
-                                app=app,
-                                host=mcp_server.settings.host,
-                                port=mcp_server.settings.port,
-                                log_level="info"
-                            )
-                            server = uvicorn.Server(config)
-                            import asyncio
-                            asyncio.run(server.serve())
+                            return app
+                        
+                        # Replace the app method temporarily
+                        if mcp_server.settings.json_response:
+                            mcp_server.streamable_http_app = patched_app_method
                         else:
-                            logger.error("Could not get app instance")
-                            # Fall back to original run
-                            return original_run(transport=transport, **kwargs)
+                            mcp_server.sse_app = patched_app_method
+                        
+                        # Now call the original run - it will use our patched app method
+                        return original_run(transport=transport, **kwargs)
                     else:
                         # For non-HTTP transports, use original run
                         return original_run(transport=transport, **kwargs)
