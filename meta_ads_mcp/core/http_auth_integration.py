@@ -340,29 +340,28 @@ def setup_starlette_middleware(app):
     print("🔒 Attempting to import MCPAuthMiddleware...")
     try:
         from .mcp_auth_middleware import MCPAuthMiddleware
-        from starlette.middleware import Middleware
         print("✅ MCPAuthMiddleware imported successfully")
         
-        # Check if already added
-        mcp_auth_added = any(m.cls == MCPAuthMiddleware for m in app.user_middleware)
-        
-        if not mcp_auth_added:
-            # CRITICAL: Insert at the BEGINNING of user_middleware, not append
-            # This ensures it runs BEFORE any other middleware
-            middleware_obj = Middleware(MCPAuthMiddleware)
-            app.user_middleware.insert(0, middleware_obj)
+        # CRITICAL FIX: Wrap the entire ASGI app instead of adding to middleware list
+        # This ensures the middleware is ALWAYS called, even if the app is already built
+        if not hasattr(app, '_mcp_auth_wrapped'):
+            print("🔧 Wrapping app with MCPAuthMiddleware...")
+            original_app = app.app  # Get the underlying ASGI app
+            wrapped_middleware = MCPAuthMiddleware(original_app)
+            app.app = wrapped_middleware  # Replace with wrapped version
+            app._mcp_auth_wrapped = True  # Mark as wrapped
             
-            # Force rebuild of middleware stack
-            app.middleware_stack = None
-            
-            logger.info("✅ MCPAuthMiddleware added - OAuth required for MCP connections")
+            logger.info("✅ MCPAuthMiddleware wrapped around app - OAuth required for MCP connections")
             print("✅ MCP Authentication: Bearer token required at connection level")
-            print(f"   Middleware stack reset: {app.middleware_stack is None}")
+            print("   App wrapped with middleware (always runs first)")
         else:
-            logger.debug("MCPAuthMiddleware already present")
+            logger.debug("MCPAuthMiddleware already wrapped")
+            print("⚠️  MCPAuthMiddleware already wrapped")
     except Exception as e:
-        logger.error(f"Failed to add MCPAuthMiddleware: {e}", exc_info=True)
+        logger.error(f"Failed to wrap MCPAuthMiddleware: {e}", exc_info=True)
         print(f"⚠️  MCP auth middleware setup failed: {e}")
+        import traceback
+        traceback.print_exc()
 
     # Check if our specific middleware class is already in the stack
     auth_injection_added = False
