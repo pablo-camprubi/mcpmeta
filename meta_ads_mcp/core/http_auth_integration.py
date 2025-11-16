@@ -223,9 +223,11 @@ def setup_fastmcp_http_auth(mcp_server):
                 # Call the original method to get/create the Starlette app
                 app = original_method(*args, **kwargs)
                 if app:
-                    logger.debug(f"Original {name} returned app: {type(app)}. Adding AuthInjectionMiddleware.")
-                    # Now, add our middleware to this specific app instance
-                    setup_starlette_middleware(app) 
+                    logger.debug(f"Original {name} returned app: {type(app)}. Setting up middleware.")
+                    # Setup middleware and get the wrapped version
+                    wrapped_app = setup_starlette_middleware(app)
+                    # Return the wrapped app instead of the original
+                    return wrapped_app if wrapped_app else app
                 else:
                     logger.error(f"Original {name} returned None or a non-app object.")
                 return app
@@ -238,8 +240,12 @@ def setup_fastmcp_http_auth(mcp_server):
         try:
             existing_app = original_app_provider_method()
             if existing_app:
-                logger.info(f"Found existing app from {method_name}, adding middleware directly")
-                setup_starlette_middleware(existing_app)
+                logger.info(f"Found existing app from {method_name}, wrapping with middleware")
+                wrapped = setup_starlette_middleware(existing_app)
+                # Note: We can't easily replace an already-running app, 
+                # but the patched method above will return wrapped version for future calls
+                if wrapped and wrapped != existing_app:
+                    logger.info(f"Wrapped existing app from {method_name}")
         except Exception as e:
             logger.debug(f"Could not access existing app from {method_name}: {e}")
 
@@ -336,24 +342,31 @@ def setup_starlette_middleware(app):
         print("❌ APP IS NONE - CANNOT ADD MIDDLEWARE")
         return
 
+    # Track the app to return (might be wrapped)
+    app_to_return = app
+    
     # Add MCP connection-level auth middleware FIRST (runs before others)
     print("🔒 Attempting to import MCPAuthMiddleware...")
     try:
         from .mcp_auth_middleware import MCPAuthMiddleware
         print("✅ MCPAuthMiddleware imported successfully")
         
-        # CRITICAL FIX: Wrap the entire ASGI app instead of adding to middleware list
-        # This ensures the middleware is ALWAYS called, even if the app is already built
+        # CRITICAL FIX: Create a wrapped version of the Starlette app
+        # BaseHTTPMiddleware expects the ASGI app as argument
+        # Starlette instance itself IS the ASGI app
         if not hasattr(app, '_mcp_auth_wrapped'):
-            print("🔧 Wrapping app with MCPAuthMiddleware...")
-            original_app = app.app  # Get the underlying ASGI app
-            wrapped_middleware = MCPAuthMiddleware(original_app)
-            app.app = wrapped_middleware  # Replace with wrapped version
-            app._mcp_auth_wrapped = True  # Mark as wrapped
+            print("🔧 Wrapping Starlette app with MCPAuthMiddleware...")
             
-            logger.info("✅ MCPAuthMiddleware wrapped around app - OAuth required for MCP connections")
+            # Create wrapped version - MCPAuthMiddleware wraps the Starlette instance
+            wrapped_app = MCPAuthMiddleware(app)
+            app_to_return = wrapped_app
+            
+            # Mark the original as wrapped to avoid double-wrapping
+            app._mcp_auth_wrapped = True
+            
+            logger.info("✅ MCPAuthMiddleware created as wrapper - OAuth required for MCP connections")
             print("✅ MCP Authentication: Bearer token required at connection level")
-            print("   App wrapped with middleware (always runs first)")
+            print("   Wrapped app created (will intercept all requests)")
         else:
             logger.debug("MCPAuthMiddleware already wrapped")
             print("⚠️  MCPAuthMiddleware already wrapped")
@@ -387,4 +400,7 @@ def setup_starlette_middleware(app):
         add_oauth_routes_to_app(app)
         logger.info("OAuth provider routes added to Starlette app successfully.")
     except Exception as e:
-        logger.error(f"Failed to add OAuth routes to Starlette app: {e}", exc_info=True) 
+        logger.error(f"Failed to add OAuth routes to Starlette app: {e}", exc_info=True)
+    
+    # Return the wrapped app (or original if wrapping failed)
+    return app_to_return 
