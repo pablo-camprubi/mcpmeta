@@ -241,6 +241,8 @@ def root():
 
 def run_proxy(host="0.0.0.0", port=10000):
     """Run the OAuth proxy server"""
+    from waitress import serve
+    
     print("\n" + "=" * 80)
     print("🔒 META ADS MCP - OAUTH AUTHENTICATION PROXY")
     print("=" * 80)
@@ -258,11 +260,15 @@ def run_proxy(host="0.0.0.0", port=10000):
     logger.info("=" * 80)
     
     try:
-        print(f"🚀 Starting Flask proxy server on {host}:{port}...")
-        app.run(host=host, port=port, threaded=True, use_reloader=False)
+        print(f"🚀 Starting Waitress proxy server on {host}:{port}...")
+        print(f"   (Production-ready WSGI server)")
+        logger.info(f"Starting Waitress server on {host}:{port}")
+        
+        # Use Waitress production server instead of Flask dev server
+        serve(app, host=host, port=port, threads=6, _quiet=False)
     except Exception as e:
-        print(f"❌ Flask proxy failed to start: {e}")
-        logger.error(f"Flask proxy failed to start: {e}", exc_info=True)
+        print(f"❌ Proxy failed to start: {e}")
+        logger.error(f"Proxy failed to start: {e}", exc_info=True)
         raise
 
 
