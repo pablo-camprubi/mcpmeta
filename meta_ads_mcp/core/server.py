@@ -437,7 +437,47 @@ def main():
                 print(f"⚠️  OAuth setup failed: {e}")
                 print("   Server will start without OAuth support")
             
-            mcp_server.run(transport="streamable-http")
+            # Run FastMCP on localhost:10001 (backend, not public)
+            # Run OAuth proxy on 0.0.0.0:10000 (public-facing with auth enforcement)
+            
+            import threading
+            from .auth_proxy import run_proxy
+            
+            # Override FastMCP to use localhost:10001
+            original_port = args.port
+            mcp_backend_port = original_port + 1  # 10001 if original is 10000
+            
+            logger.info(f"Starting FastMCP backend on localhost:{mcp_backend_port}")
+            logger.info(f"Starting OAuth proxy on {args.host}:{original_port}")
+            print(f"\n{'='*80}")
+            print(f"🔒 OAUTH PROXY ARCHITECTURE")
+            print(f"{'='*80}")
+            print(f"   Backend MCP Server: http://127.0.0.1:{mcp_backend_port}/mcp (private)")
+            print(f"   OAuth Proxy:        http://{args.host}:{original_port}/mcp (public)")
+            print(f"   ✅ All requests to {args.host}:{original_port} REQUIRE Bearer token")
+            print(f"{'='*80}\n")
+            
+            # Update MCP server settings to run on backend port
+            import os
+            os.environ['MCP_PORT'] = str(mcp_backend_port)
+            
+            # Start FastMCP backend in a separate thread
+            def run_mcp_backend():
+                # Monkey-patch the settings to use localhost and backend port
+                mcp_server.settings.streamable_http_host = "127.0.0.1"
+                mcp_server.settings.streamable_http_port = mcp_backend_port
+                mcp_server.run(transport="streamable-http")
+            
+            mcp_thread = threading.Thread(target=run_mcp_backend, daemon=True)
+            mcp_thread.start()
+            
+            # Wait a moment for FastMCP to start
+            import time
+            time.sleep(2)
+            logger.info("FastMCP backend started successfully")
+            
+            # Start the OAuth proxy on the public port (this blocks)
+            run_proxy(host=args.host, port=original_port)
         except Exception as e:
             logger.error(f"Error starting Streamable HTTP server: {e}")
             print(f"Error: Failed to start Streamable HTTP server: {e}")
