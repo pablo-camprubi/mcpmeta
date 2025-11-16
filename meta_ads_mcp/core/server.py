@@ -464,19 +464,22 @@ def main():
                 
                 print(f"\n🔧 BACKEND THREAD: Starting FastMCP backend...")
                 print(f"   Target: 127.0.0.1:{mcp_backend_port}")
-                print(f"   Auth: NONE (proxy handles all auth)")
+                print(f"   Auth: Handled by proxy")
                 
-                # Use the main mcp_server but override settings to listen on backend port
-                # The proxy will handle all authentication
+                # Get the Starlette app directly from mcp_server
+                # This bypasses the run() method and lets us control host/port
+                backend_app = mcp_server.streamable_http_app()
+                
                 logger.info(f"Starting FastMCP backend on 127.0.0.1:{mcp_backend_port}")
-                print(f"🚀 Running mcp_server on host=127.0.0.1, port={mcp_backend_port}\n")
+                print(f"✅ Got streamable HTTP app from mcp_server")
+                print(f"🚀 Starting uvicorn on host=127.0.0.1, port={mcp_backend_port}\n")
                 
-                # Run FastMCP directly with custom host/port
-                # This will use the original mcp_server instance with all tools
-                mcp_server.run(
-                    transport="streamable-http",
+                # Run uvicorn with the backend app on localhost only
+                uvicorn.run(
+                    backend_app,
                     host="127.0.0.1",
-                    port=mcp_backend_port
+                    port=mcp_backend_port,
+                    log_level="info"
                 )
             
             print(f"🔧 Creating backend thread...")
