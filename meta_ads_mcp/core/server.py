@@ -467,11 +467,9 @@ def main():
                 print(f"   Auth: Handled by proxy")
                 
                 # Get the Starlette app directly from mcp_server
-                # The app method might be patched with OAuth routes
-                if args.sse_response:
-                    backend_app = mcp_server.sse_app()
-                else:
-                    backend_app = mcp_server.streamable_http_app()
+                # Always use streamable_http_app for backend (supports POST /mcp)
+                # SSE app only supports GET /sse which doesn't work for MCP clients
+                backend_app = mcp_server.streamable_http_app()
                 
                 # Verify OAuth routes are present
                 oauth_route_count = sum(1 for r in backend_app.router.routes if '/oauth' in r.path or 'oauth-authorization-server' in r.path)
