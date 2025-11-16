@@ -461,15 +461,24 @@ def main():
             def run_mcp_backend():
                 """Run FastMCP backend on localhost with custom port"""
                 import uvicorn
+                from fastmcp import FastMCP
                 
                 print(f"\n🔧 BACKEND THREAD: Starting FastMCP backend...")
                 print(f"   Target: 127.0.0.1:{mcp_backend_port}")
+                print(f"   Auth: NONE (proxy handles all auth)")
                 
-                # Get the Starlette app from FastMCP
-                # Always use streamable_http_app for backend (supports both GET and POST)
-                # The SSE app only supports GET, but MCP clients send POST requests
-                backend_app = mcp_server.streamable_http_app()
-                print(f"   App type: Streamable HTTP app (supports POST)")
+                # Create a fresh FastMCP instance without any auth middleware
+                # The proxy handles all authentication
+                backend_mcp = FastMCP("meta-ads-backend")
+                
+                # Copy all tools from the main mcp_server
+                backend_mcp._tools = mcp_server._tools
+                backend_mcp._resources = mcp_server._resources
+                backend_mcp._prompts = mcp_server._prompts
+                
+                # Get clean app without auth middleware
+                backend_app = backend_mcp.streamable_http_app()
+                print(f"   App type: Clean Streamable HTTP app (no auth middleware)")
                 
                 logger.info(f"Starting FastMCP backend on 127.0.0.1:{mcp_backend_port}")
                 print(f"🚀 Calling uvicorn.run() with host=127.0.0.1, port={mcp_backend_port}\n")
