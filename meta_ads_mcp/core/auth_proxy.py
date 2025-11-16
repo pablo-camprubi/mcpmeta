@@ -192,9 +192,11 @@ def oauth_discovery():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/oauth/authorize', methods=['GET'])
+@app.route('/oauth/authorize', methods=['GET', 'POST'])
 @app.route('/oauth/token', methods=['POST'])
 @app.route('/oauth/callback', methods=['GET'])
+@app.route('/oauth/facebook/callback', methods=['GET'])
+@app.route('/oauth/register', methods=['POST'])
 def oauth_routes():
     """OAuth routes - forward to backend WITHOUT auth check"""
     logger.info(f"OAuth route request: {request.path} - forwarding to backend")
