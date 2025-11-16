@@ -466,12 +466,10 @@ def main():
                 print(f"   Target: 127.0.0.1:{mcp_backend_port}")
                 
                 # Get the Starlette app from FastMCP
-                if args.sse_response:
-                    backend_app = mcp_server.sse_app()
-                    print(f"   App type: SSE app")
-                else:
-                    backend_app = mcp_server.streamable_http_app()
-                    print(f"   App type: Streamable HTTP app")
+                # Always use streamable_http_app for backend (supports both GET and POST)
+                # The SSE app only supports GET, but MCP clients send POST requests
+                backend_app = mcp_server.streamable_http_app()
+                print(f"   App type: Streamable HTTP app (supports POST)")
                 
                 logger.info(f"Starting FastMCP backend on 127.0.0.1:{mcp_backend_port}")
                 print(f"🚀 Calling uvicorn.run() with host=127.0.0.1, port={mcp_backend_port}\n")

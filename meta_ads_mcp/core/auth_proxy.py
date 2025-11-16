@@ -68,8 +68,8 @@ def proxy_mcp(path):
         }
     
     # Forward request to backend MCP server
-    # FastMCP SSE endpoint is at /sse, not /mcp
-    backend_url = f"{BACKEND_URL}/sse/{path}" if path else f"{BACKEND_URL}/sse"
+    # Backend runs streamable_http_app() which serves on /mcp
+    backend_url = f"{BACKEND_URL}/mcp/{path}" if path else f"{BACKEND_URL}/mcp"
     logger.info(f"✅ Auth valid - forwarding to {backend_url}")
     
     try:
