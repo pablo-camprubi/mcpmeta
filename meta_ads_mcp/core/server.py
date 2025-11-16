@@ -461,34 +461,22 @@ def main():
             def run_mcp_backend():
                 """Run FastMCP backend on localhost with custom port"""
                 import uvicorn
-                from mcp.server.fastmcp import FastMCP
                 
                 print(f"\n🔧 BACKEND THREAD: Starting FastMCP backend...")
                 print(f"   Target: 127.0.0.1:{mcp_backend_port}")
                 print(f"   Auth: NONE (proxy handles all auth)")
                 
-                # Create a fresh FastMCP instance without any auth middleware
-                # The proxy handles all authentication
-                backend_mcp = FastMCP("meta-ads-backend")
-                
-                # Copy all tools from the main mcp_server
-                backend_mcp._tools = mcp_server._tools
-                backend_mcp._resources = mcp_server._resources
-                backend_mcp._prompts = mcp_server._prompts
-                
-                # Get clean app without auth middleware
-                backend_app = backend_mcp.streamable_http_app()
-                print(f"   App type: Clean Streamable HTTP app (no auth middleware)")
-                
+                # Use the main mcp_server but override settings to listen on backend port
+                # The proxy will handle all authentication
                 logger.info(f"Starting FastMCP backend on 127.0.0.1:{mcp_backend_port}")
-                print(f"🚀 Calling uvicorn.run() with host=127.0.0.1, port={mcp_backend_port}\n")
+                print(f"🚀 Running mcp_server on host=127.0.0.1, port={mcp_backend_port}\n")
                 
-                # Run uvicorn on the backend port (localhost only)
-                uvicorn.run(
-                    backend_app,
+                # Run FastMCP directly with custom host/port
+                # This will use the original mcp_server instance with all tools
+                mcp_server.run(
+                    transport="streamable-http",
                     host="127.0.0.1",
-                    port=mcp_backend_port,
-                    log_level="info"
+                    port=mcp_backend_port
                 )
             
             print(f"🔧 Creating backend thread...")
