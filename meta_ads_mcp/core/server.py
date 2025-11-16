@@ -461,7 +461,7 @@ def main():
             def run_mcp_backend():
                 """Run FastMCP backend on localhost with custom port"""
                 import uvicorn
-                from fastmcp import FastMCP
+                from mcp.server.fastmcp import FastMCP
                 
                 print(f"\n🔧 BACKEND THREAD: Starting FastMCP backend...")
                 print(f"   Target: 127.0.0.1:{mcp_backend_port}")
