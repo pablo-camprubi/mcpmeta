@@ -340,15 +340,24 @@ def setup_starlette_middleware(app):
     print("🔒 Attempting to import MCPAuthMiddleware...")
     try:
         from .mcp_auth_middleware import MCPAuthMiddleware
+        from starlette.middleware import Middleware
         print("✅ MCPAuthMiddleware imported successfully")
         
         # Check if already added
         mcp_auth_added = any(m.cls == MCPAuthMiddleware for m in app.user_middleware)
         
         if not mcp_auth_added:
-            app.add_middleware(MCPAuthMiddleware)
+            # CRITICAL: Insert at the BEGINNING of user_middleware, not append
+            # This ensures it runs BEFORE any other middleware
+            middleware_obj = Middleware(MCPAuthMiddleware)
+            app.user_middleware.insert(0, middleware_obj)
+            
+            # Force rebuild of middleware stack
+            app.middleware_stack = None
+            
             logger.info("✅ MCPAuthMiddleware added - OAuth required for MCP connections")
             print("✅ MCP Authentication: Bearer token required at connection level")
+            print(f"   Middleware stack reset: {app.middleware_stack is None}")
         else:
             logger.debug("MCPAuthMiddleware already present")
     except Exception as e:
