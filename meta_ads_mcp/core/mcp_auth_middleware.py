@@ -20,14 +20,22 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
         print("🔒 MCP Auth Enforced: No Bearer token = 401 Unauthorized")
     
     async def dispatch(self, request: Request, call_next):
+        print(f"🔍 MCPAuthMiddleware.dispatch() CALLED! Path: {request.url.path}")
+        print(f"   Method: {request.method}")
+        print(f"   Headers: {dict(request.headers)}")
+        logger.info(f"MCPAuthMiddleware.dispatch() called for path: {request.url.path}")
+        
         # Only check MCP endpoints
         if request.url.path.startswith('/mcp') or request.url.path.startswith('/sse'):
+            print(f"🔒 Path {request.url.path} REQUIRES AUTH!")
             logger.debug(f"MCP Auth Middleware: Checking authentication for {request.url.path}")
             
             # Extract Bearer token
             auth_header = request.headers.get('Authorization') or request.headers.get('authorization')
             
             if not auth_header or not auth_header.lower().startswith('bearer '):
+                print(f"❌ NO BEARER TOKEN! Returning 401 Unauthorized")
+                print(f"   Auth header: {auth_header}")
                 logger.info("MCP connection attempt without Bearer token - returning 401")
                 return JSONResponse(
                     {
