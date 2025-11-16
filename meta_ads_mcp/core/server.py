@@ -343,22 +343,10 @@ def main():
         from . import accounts, campaigns, adsets, ads, insights, authentication
         from . import ads_library, budget_schedules, reports, openai_deep_research
         
-        # ✅ NEW: Setup HTTP authentication middleware
-        logger.info("Setting up HTTP authentication middleware")
-        try:
-            from .http_auth_integration import setup_fastmcp_http_auth
-            
-            # Setup the FastMCP HTTP auth integration
-            setup_fastmcp_http_auth(mcp_server)
-            logger.info("FastMCP HTTP authentication integration setup successful")
-            print("✅ FastMCP HTTP authentication integration enabled")
-            print("   - Bearer tokens via Authorization: Bearer <token> header")
-            print("   - Direct Meta tokens via X-META-ACCESS-TOKEN header")
-            
-        except Exception as e:
-            logger.error(f"Failed to setup FastMCP HTTP authentication integration: {e}")
-            print(f"⚠️  FastMCP HTTP authentication integration setup failed: {e}")
-            print("   Server will still start but may not support header-based auth")
+        # ✅ DISABLED: Auth middleware setup (now handled by proxy)
+        # The proxy architecture handles all authentication via Bearer tokens
+        # The backend runs as a clean FastMCP app without auth middleware
+        logger.info("Using proxy-based authentication (auth middleware disabled for backend)")
         
         # Log final server configuration
         logger.info(f"FastMCP server configured with:")
@@ -470,6 +458,17 @@ def main():
                 # Always use streamable_http_app for backend (supports POST /mcp)
                 # SSE app only supports GET /sse which doesn't work for MCP clients
                 backend_app = mcp_server.streamable_http_app()
+                
+                # Manually add OAuth routes to the backend app
+                # (The patching only happens in mcp_server.run(), so we need to add them manually here)
+                try:
+                    from .oauth_provider import oauth_routes
+                    for route in oauth_routes:
+                        if not any(r.path == route.path for r in backend_app.router.routes):
+                            backend_app.router.routes.insert(0, route)
+                    logger.info(f"Added {len(oauth_routes)} OAuth routes to backend app")
+                except Exception as e:
+                    logger.error(f"Failed to add OAuth routes to backend: {e}")
                 
                 # Verify OAuth routes are present
                 oauth_route_count = sum(1 for r in backend_app.router.routes if '/oauth' in r.path or 'oauth-authorization-server' in r.path)
