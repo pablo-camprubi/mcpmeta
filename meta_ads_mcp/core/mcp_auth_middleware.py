@@ -14,6 +14,11 @@ from .utils import logger
 class MCPAuthMiddleware(BaseHTTPMiddleware):
     """Middleware that enforces authentication for all MCP endpoints"""
     
+    def __init__(self, app):
+        super().__init__(app)
+        logger.info("🔒 MCPAuthMiddleware initialized - Bearer token REQUIRED for /mcp and /sse")
+        print("🔒 MCP Auth Enforced: No Bearer token = 401 Unauthorized")
+    
     async def dispatch(self, request: Request, call_next):
         # Only check MCP endpoints
         if request.url.path.startswith('/mcp') or request.url.path.startswith('/sse'):
