@@ -454,10 +454,42 @@ def main():
                 print(f"   Target: 127.0.0.1:{mcp_backend_port}")
                 print(f"   Auth: Handled by proxy")
                 
+                # Setup HTTP auth patching for token extraction
+                # This allows tools to access the Bearer token from the request context
+                try:
+                    from .http_auth_integration import setup_http_auth_patching, FastMCPAuthIntegration
+                    from starlette.middleware.base import BaseHTTPMiddleware
+                    from starlette.requests import Request
+                    
+                    setup_http_auth_patching()
+                    print(f"✅ Token extraction patching enabled")
+                    logger.info("HTTP auth patching setup complete")
+                except Exception as e:
+                    logger.error(f"Failed to setup HTTP auth patching: {e}")
+                    print(f"⚠️  Token extraction patching failed: {e}")
+                
                 # Get the Starlette app directly from mcp_server
                 # Always use streamable_http_app for backend (supports POST /mcp)
                 # SSE app only supports GET /sse which doesn't work for MCP clients
                 backend_app = mcp_server.streamable_http_app()
+                
+                # Add token extraction middleware (NO auth check - proxy already did that)
+                class TokenExtractionMiddleware(BaseHTTPMiddleware):
+                    async def dispatch(self, request: Request, call_next):
+                        """Extract Bearer token from request and inject into context"""
+                        # Extract token from Authorization header
+                        auth_header = request.headers.get('authorization', '')
+                        if auth_header.lower().startswith('bearer '):
+                            token = auth_header[7:].strip()
+                            FastMCPAuthIntegration.set_auth_token(token)
+                            logger.debug(f"Extracted Bearer token: {token[:10]}...")
+                        
+                        response = await call_next(request)
+                        return response
+                
+                # Add the token extraction middleware to the app
+                backend_app.add_middleware(TokenExtractionMiddleware)
+                print(f"✅ Token extraction middleware added")
                 
                 # Manually add OAuth routes to the backend app
                 # (The patching only happens in mcp_server.run(), so we need to add them manually here)
