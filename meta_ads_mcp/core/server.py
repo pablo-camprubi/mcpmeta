@@ -457,21 +457,32 @@ def main():
             print(f"   ✅ All requests to {args.host}:{original_port} REQUIRE Bearer token")
             print(f"{'='*80}\n")
             
-            # Update MCP server settings to run on backend port
-            os.environ['MCP_PORT'] = str(mcp_backend_port)
-            
-            # Start FastMCP backend in a separate thread
+            # Start FastMCP backend in a separate thread on localhost:10001
             def run_mcp_backend():
-                # Monkey-patch the settings to use localhost and backend port
-                mcp_server.settings.streamable_http_host = "127.0.0.1"
-                mcp_server.settings.streamable_http_port = mcp_backend_port
-                mcp_server.run(transport="streamable-http")
+                """Run FastMCP backend on localhost with custom port"""
+                import uvicorn
+                
+                # Get the Starlette app from FastMCP
+                if args.sse_response:
+                    backend_app = mcp_server.sse_app()
+                else:
+                    backend_app = mcp_server.streamable_http_app()
+                
+                logger.info(f"Starting FastMCP backend on 127.0.0.1:{mcp_backend_port}")
+                
+                # Run uvicorn on the backend port (localhost only)
+                uvicorn.run(
+                    backend_app,
+                    host="127.0.0.1",
+                    port=mcp_backend_port,
+                    log_level="info"
+                )
             
             mcp_thread = threading.Thread(target=run_mcp_backend, daemon=True)
             mcp_thread.start()
             
-            # Wait a moment for FastMCP to start
-            time.sleep(2)
+            # Wait a moment for FastMCP backend to start
+            time.sleep(3)
             logger.info("FastMCP backend started successfully")
             
             # Start the OAuth proxy on the public port (this blocks)
