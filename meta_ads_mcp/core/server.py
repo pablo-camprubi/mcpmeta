@@ -458,7 +458,6 @@ def main():
             print(f"{'='*80}\n")
             
             # Update MCP server settings to run on backend port
-            import os
             os.environ['MCP_PORT'] = str(mcp_backend_port)
             
             # Start FastMCP backend in a separate thread
@@ -472,7 +471,6 @@ def main():
             mcp_thread.start()
             
             # Wait a moment for FastMCP to start
-            import time
             time.sleep(2)
             logger.info("FastMCP backend started successfully")
             
