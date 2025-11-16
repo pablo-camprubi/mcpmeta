@@ -467,11 +467,17 @@ def main():
                 print(f"   Auth: Handled by proxy")
                 
                 # Get the Starlette app directly from mcp_server
-                # This bypasses the run() method and lets us control host/port
-                backend_app = mcp_server.streamable_http_app()
+                # The app method might be patched with OAuth routes
+                if args.sse_response:
+                    backend_app = mcp_server.sse_app()
+                else:
+                    backend_app = mcp_server.streamable_http_app()
+                
+                # Verify OAuth routes are present
+                oauth_route_count = sum(1 for r in backend_app.router.routes if '/oauth' in r.path or 'oauth-authorization-server' in r.path)
+                print(f"✅ Got app from mcp_server ({oauth_route_count} OAuth routes)")
                 
                 logger.info(f"Starting FastMCP backend on 127.0.0.1:{mcp_backend_port}")
-                print(f"✅ Got streamable HTTP app from mcp_server")
                 print(f"🚀 Starting uvicorn on host=127.0.0.1, port={mcp_backend_port}\n")
                 
                 # Run uvicorn with the backend app on localhost only
