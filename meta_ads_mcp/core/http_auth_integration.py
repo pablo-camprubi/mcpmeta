@@ -328,16 +328,33 @@ def setup_starlette_middleware(app):
         logger.error("Cannot setup Starlette middleware, app is None.")
         return
 
+    # Add MCP connection-level auth middleware FIRST (runs before others)
+    try:
+        from .mcp_auth_middleware import MCPAuthMiddleware
+        
+        # Check if already added
+        mcp_auth_added = any(m.cls == MCPAuthMiddleware for m in app.user_middleware)
+        
+        if not mcp_auth_added:
+            app.add_middleware(MCPAuthMiddleware)
+            logger.info("✅ MCPAuthMiddleware added - OAuth required for MCP connections")
+            print("✅ MCP Authentication: Bearer token required at connection level")
+        else:
+            logger.debug("MCPAuthMiddleware already present")
+    except Exception as e:
+        logger.error(f"Failed to add MCPAuthMiddleware: {e}", exc_info=True)
+        print(f"⚠️  MCP auth middleware setup failed: {e}")
+
     # Check if our specific middleware class is already in the stack
-    already_added = False
+    auth_injection_added = False
     # Starlette's app.middleware is a list of Middleware objects.
     # app.user_middleware contains middleware added by app.add_middleware()
     for middleware_item in app.user_middleware:
         if middleware_item.cls == AuthInjectionMiddleware:
-            already_added = True
+            auth_injection_added = True
             break
             
-    if not already_added:
+    if not auth_injection_added:
         try:
             app.add_middleware(AuthInjectionMiddleware)
             logger.info("AuthInjectionMiddleware added to Starlette app successfully.")

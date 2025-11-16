@@ -1,0 +1,69 @@
+"""
+MCP Connection-Level Authentication Middleware
+
+This middleware enforces authentication at the MCP connection level,
+returning 401 before listing tools if no valid Bearer token is provided.
+"""
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from .utils import logger
+
+
+class MCPAuthMiddleware(BaseHTTPMiddleware):
+    """Middleware that enforces authentication for all MCP endpoints"""
+    
+    async def dispatch(self, request: Request, call_next):
+        # Only check MCP endpoints
+        if request.url.path.startswith('/mcp') or request.url.path.startswith('/sse'):
+            logger.debug(f"MCP Auth Middleware: Checking authentication for {request.url.path}")
+            
+            # Extract Bearer token
+            auth_header = request.headers.get('Authorization') or request.headers.get('authorization')
+            
+            if not auth_header or not auth_header.lower().startswith('bearer '):
+                logger.info("MCP connection attempt without Bearer token - returning 401")
+                return JSONResponse(
+                    {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32600,
+                            "message": "Authentication required",
+                            "data": "Please authenticate using OAuth. Bearer token required."
+                        }
+                    },
+                    status_code=401,
+                    headers={
+                        "WWW-Authenticate": 'Bearer realm="MCP Server", error="invalid_token"',
+                        "Content-Type": "application/json"
+                    }
+                )
+            
+            token = auth_header[7:].strip()
+            
+            # Basic token validation (non-empty)
+            if not token or len(token) < 10:
+                logger.warning(f"Invalid Bearer token format: {token[:10] if token else 'empty'}...")
+                return JSONResponse(
+                    {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32600,
+                            "message": "Invalid authentication token",
+                            "data": "Bearer token is invalid or malformed"
+                        }
+                    },
+                    status_code=401,
+                    headers={
+                        "WWW-Authenticate": 'Bearer realm="MCP Server", error="invalid_token"',
+                        "Content-Type": "application/json"
+                    }
+                )
+            
+            logger.debug(f"Valid Bearer token found: {token[:10]}...")
+        
+        # Continue with request
+        response = await call_next(request)
+        return response
+
