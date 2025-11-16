@@ -375,6 +375,64 @@ def main():
             print(f"   URL: http://{args.host}:{args.port}{mcp_server.settings.streamable_http_path}/")
             print(f"   Mode: {'Stateless' if mcp_server.settings.stateless_http else 'Stateful'}")
             print(f"   Format: {'JSON' if mcp_server.settings.json_response else 'SSE'}")
+            
+            # Add OAuth routes before starting the server
+            logger.info("Adding OAuth routes to FastMCP server")
+            try:
+                from .oauth_provider import oauth_routes
+                
+                # Patch run method to add OAuth routes after app creation
+                original_run = mcp_server.run
+                
+                def patched_run(transport="stdio", **kwargs):
+                    if transport == "streamable-http":
+                        # Create the app first
+                        import uvicorn
+                        from starlette.applications import Starlette
+                        from starlette.routing import Mount
+                        
+                        # Get the appropriate app based on response format
+                        if mcp_server.settings.json_response:
+                            app = mcp_server.streamable_http_app()
+                        else:
+                            app = mcp_server.sse_app()
+                        
+                        if app:
+                            logger.info(f"Got app instance: {type(app)}")
+                            # Add OAuth routes directly to the app's router
+                            for route in oauth_routes:
+                                app.router.routes.append(route)
+                                logger.info(f"Added OAuth route: {route.path}")
+                            
+                            print(f"✅ OAuth routes added ({len(oauth_routes)} endpoints)")
+                            
+                            # Start uvicorn directly with the patched app
+                            config = uvicorn.Config(
+                                app=app,
+                                host=mcp_server.settings.host,
+                                port=mcp_server.settings.port,
+                                log_level="info"
+                            )
+                            server = uvicorn.Server(config)
+                            import asyncio
+                            asyncio.run(server.serve())
+                        else:
+                            logger.error("Could not get app instance")
+                            # Fall back to original run
+                            return original_run(transport=transport, **kwargs)
+                    else:
+                        # For non-HTTP transports, use original run
+                        return original_run(transport=transport, **kwargs)
+                
+                mcp_server.run = patched_run
+                logger.info("OAuth route patching complete")
+                print("✅ OAuth provider configured")
+                
+            except Exception as e:
+                logger.error(f"Failed to setup OAuth routes: {e}", exc_info=True)
+                print(f"⚠️  OAuth setup failed: {e}")
+                print("   Server will start without OAuth support")
+            
             mcp_server.run(transport="streamable-http")
         except Exception as e:
             logger.error(f"Error starting Streamable HTTP server: {e}")
