@@ -346,38 +346,76 @@ def setup_starlette_middleware(app):
     app_to_return = app
     
     # Add MCP connection-level auth middleware FIRST (runs before others)
-    print("🔒 Attempting to import MCPAuthMiddleware...")
+    print("🔒 Implementing RAW ASGI middleware for MCP auth...")
     try:
-        from .mcp_auth_middleware import MCPAuthMiddleware
-        print("✅ MCPAuthMiddleware imported successfully")
-        
-        # NUCLEAR OPTION: Monkey-patch the app's __call__ method directly
-        # This ensures EVERY ASGI request goes through our middleware
         if not hasattr(app, '_mcp_auth_wrapped'):
-            print("🔧 Monkey-patching app.__call__ with MCPAuthMiddleware...")
+            print("🔧 Wrapping app with raw ASGI middleware...")
             
-            # Store original __call__ method
-            original_call = app.__call__
+            # Store the original ASGI app callable
+            original_asgi_app = app
             
-            # Create middleware instance that wraps original app
-            middleware = MCPAuthMiddleware(app)
+            # Define a raw ASGI middleware function
+            async def mcp_auth_asgi_middleware(scope, receive, send):
+                """Raw ASGI middleware that enforces Bearer token auth on /mcp and /sse"""
+                from starlette.responses import JSONResponse
+                
+                # Only check HTTP requests to /mcp or /sse
+                if scope["type"] == "http" and (
+                    scope["path"].startswith("/mcp") or scope["path"].startswith("/sse")
+                ):
+                    print(f"🔍 RAW ASGI Middleware intercepted: {scope['method']} {scope['path']}")
+                    logger.info(f"MCP Auth Middleware checking: {scope['path']}")
+                    
+                    # Extract Authorization header
+                    headers = dict(scope.get("headers", []))
+                    auth_header = None
+                    for header_name, header_value in headers.items():
+                        if header_name.lower() == b"authorization":
+                            auth_header = header_value.decode("utf-8")
+                            break
+                    
+                    # Check for Bearer token
+                    if not auth_header or not auth_header.lower().startswith("bearer "):
+                        print(f"❌ NO BEARER TOKEN! Returning 401")
+                        print(f"   Auth header: {auth_header}")
+                        logger.info("MCP request without Bearer token - returning 401")
+                        
+                        # Return 401 Unauthorized
+                        response = JSONResponse(
+                            {
+                                "jsonrpc": "2.0",
+                                "error": {
+                                    "code": -32600,
+                                    "message": "Authentication required",
+                                    "data": "Please authenticate using OAuth. Bearer token required."
+                                }
+                            },
+                            status_code=401,
+                            headers={
+                                "WWW-Authenticate": 'Bearer realm="MCP Server", error="invalid_token"'
+                            }
+                        )
+                        await response(scope, receive, send)
+                        return
+                    
+                    print(f"✅ Bearer token present, allowing request")
+                
+                # Call the original app
+                await original_asgi_app(scope, receive, send)
             
-            # Replace app's __call__ with middleware's __call__
-            # This makes every request go through the middleware
-            app.__call__ = middleware.__call__
-            
-            # Mark as wrapped
+            # Replace the app with our middleware
+            app.__call__ = mcp_auth_asgi_middleware
             app._mcp_auth_wrapped = True
-            app._original_call = original_call  # Keep reference for debugging
+            app._original_asgi_app = original_asgi_app
             
-            logger.info("✅ MCPAuthMiddleware monkey-patched into app.__call__ - OAuth required for MCP connections")
+            logger.info("✅ Raw ASGI middleware installed - OAuth required for MCP connections")
             print("✅ MCP Authentication: Bearer token required at connection level")
-            print("   App.__call__ replaced with middleware (EVERY request intercepted)")
+            print("   Raw ASGI middleware intercepts ALL requests to /mcp and /sse")
         else:
-            logger.debug("MCPAuthMiddleware already wrapped")
-            print("⚠️  MCPAuthMiddleware already wrapped")
+            logger.debug("MCP auth middleware already wrapped")
+            print("⚠️  MCP auth middleware already wrapped")
     except Exception as e:
-        logger.error(f"Failed to monkey-patch MCPAuthMiddleware: {e}", exc_info=True)
+        logger.error(f"Failed to install raw ASGI middleware: {e}", exc_info=True)
         print(f"⚠️  MCP auth middleware setup failed: {e}")
         import traceback
         traceback.print_exc()
