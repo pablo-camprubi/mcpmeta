@@ -351,27 +351,33 @@ def setup_starlette_middleware(app):
         from .mcp_auth_middleware import MCPAuthMiddleware
         print("✅ MCPAuthMiddleware imported successfully")
         
-        # CRITICAL FIX: Create a wrapped version of the Starlette app
-        # BaseHTTPMiddleware expects the ASGI app as argument
-        # Starlette instance itself IS the ASGI app
+        # NUCLEAR OPTION: Monkey-patch the app's __call__ method directly
+        # This ensures EVERY ASGI request goes through our middleware
         if not hasattr(app, '_mcp_auth_wrapped'):
-            print("🔧 Wrapping Starlette app with MCPAuthMiddleware...")
+            print("🔧 Monkey-patching app.__call__ with MCPAuthMiddleware...")
             
-            # Create wrapped version - MCPAuthMiddleware wraps the Starlette instance
-            wrapped_app = MCPAuthMiddleware(app)
-            app_to_return = wrapped_app
+            # Store original __call__ method
+            original_call = app.__call__
             
-            # Mark the original as wrapped to avoid double-wrapping
+            # Create middleware instance that wraps original app
+            middleware = MCPAuthMiddleware(app)
+            
+            # Replace app's __call__ with middleware's __call__
+            # This makes every request go through the middleware
+            app.__call__ = middleware.__call__
+            
+            # Mark as wrapped
             app._mcp_auth_wrapped = True
+            app._original_call = original_call  # Keep reference for debugging
             
-            logger.info("✅ MCPAuthMiddleware created as wrapper - OAuth required for MCP connections")
+            logger.info("✅ MCPAuthMiddleware monkey-patched into app.__call__ - OAuth required for MCP connections")
             print("✅ MCP Authentication: Bearer token required at connection level")
-            print("   Wrapped app created (will intercept all requests)")
+            print("   App.__call__ replaced with middleware (EVERY request intercepted)")
         else:
             logger.debug("MCPAuthMiddleware already wrapped")
             print("⚠️  MCPAuthMiddleware already wrapped")
     except Exception as e:
-        logger.error(f"Failed to wrap MCPAuthMiddleware: {e}", exc_info=True)
+        logger.error(f"Failed to monkey-patch MCPAuthMiddleware: {e}", exc_info=True)
         print(f"⚠️  MCP auth middleware setup failed: {e}")
         import traceback
         traceback.print_exc()
