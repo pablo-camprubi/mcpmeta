@@ -215,19 +215,30 @@ def setup_fastmcp_http_auth(mcp_server):
     for method_name in app_provider_methods:
         original_app_provider_method = getattr(mcp_server, method_name)
         
-        def new_patched_app_provider_method(*args, **kwargs):
-            # Call the original method to get/create the Starlette app
-            app = original_app_provider_method(*args, **kwargs)
-            if app:
-                logger.debug(f"Original {method_name} returned app: {type(app)}. Adding AuthInjectionMiddleware.")
-                # Now, add our middleware to this specific app instance
-                setup_starlette_middleware(app) 
-            else:
-                logger.error(f"Original {method_name} returned None or a non-app object.")
-            return app
+        def make_patched_method(original_method, name):
+            def new_patched_app_provider_method(*args, **kwargs):
+                # Call the original method to get/create the Starlette app
+                app = original_method(*args, **kwargs)
+                if app:
+                    logger.debug(f"Original {name} returned app: {type(app)}. Adding AuthInjectionMiddleware.")
+                    # Now, add our middleware to this specific app instance
+                    setup_starlette_middleware(app) 
+                else:
+                    logger.error(f"Original {name} returned None or a non-app object.")
+                return app
+            return new_patched_app_provider_method
             
-        setattr(mcp_server, method_name, new_patched_app_provider_method)
+        setattr(mcp_server, method_name, make_patched_method(original_app_provider_method, method_name))
         logger.debug(f"Patched mcp_server.{method_name} to inject AuthInjectionMiddleware.")
+        
+        # Also try to patch any already-created app instance
+        try:
+            existing_app = original_app_provider_method()
+            if existing_app:
+                logger.info(f"Found existing app from {method_name}, adding middleware directly")
+                setup_starlette_middleware(existing_app)
+        except Exception as e:
+            logger.debug(f"Could not access existing app from {method_name}: {e}")
 
     # The old setup_request_middleware call is no longer needed here,
     # as middleware addition is now handled by patching the app provider methods.
