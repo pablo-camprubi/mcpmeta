@@ -215,6 +215,59 @@ async def get_cpm(object_id: str, access_token: Optional[str] = None,
 
 @mcp_server.tool()
 @meta_api_tool
+async def get_roas(object_id: str, access_token: Optional[str] = None,
+                  time_range: Union[str, Dict[str, str]] = "last_30d", 
+                  breakdown: str = "", level: str = "ad", 
+                  limit: int = 25, after: str = "") -> str:
+    """
+    Get ROAS (Return on Ad Spend) metrics for campaigns, ad sets, or ads.
+    ROAS shows the revenue generated for every dollar spent on ads.
+    Returns: spend, purchase_roas (if available), action_values (revenue), and calculated ROAS.
+    
+    Example: ROAS of 3.5 means you earned $3.50 for every $1.00 spent.
+    
+    Args:
+        object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
+        access_token: Meta API access token (optional - will use cached token if not provided)
+        time_range: {TIME_RANGE_DOCS}
+        breakdown: {BREAKDOWN_DOCS}
+        level: Level of aggregation (ad, adset, campaign, account)
+        limit: Maximum number of results per page (default: 25)
+        after: Pagination cursor for next page
+    """.format(TIME_RANGE_DOCS=TIME_RANGE_DOCS, BREAKDOWN_DOCS=BREAKDOWN_DOCS)
+    
+    fields = "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,purchase_roas,action_values,actions"
+    result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
+    
+    # Parse the result and add calculated ROAS if not present
+    try:
+        data = json.loads(result)
+        if "data" in data and isinstance(data["data"], list):
+            for item in data["data"]:
+                # If purchase_roas is not available, calculate it from action_values and spend
+                if "purchase_roas" not in item or not item.get("purchase_roas"):
+                    spend = float(item.get("spend", 0))
+                    if spend > 0 and "action_values" in item:
+                        # Find purchase value from action_values
+                        action_values = item.get("action_values", [])
+                        purchase_value = 0
+                        for action in action_values:
+                            if action.get("action_type") in ["purchase", "omni_purchase"]:
+                                purchase_value += float(action.get("value", 0))
+                        
+                        if purchase_value > 0:
+                            calculated_roas = purchase_value / spend
+                            item["calculated_roas"] = round(calculated_roas, 2)
+                            item["calculated_revenue"] = round(purchase_value, 2)
+        
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        # If parsing fails, return the original result
+        return result
+
+
+@mcp_server.tool()
+@meta_api_tool
 async def get_performance_overview(object_id: str, access_token: Optional[str] = None,
                                   time_range: Union[str, Dict[str, str]] = "last_30d", 
                                   breakdown: str = "", level: str = "ad", 
