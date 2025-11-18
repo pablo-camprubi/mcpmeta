@@ -268,6 +268,235 @@ async def get_roas(object_id: str, access_token: Optional[str] = None,
 
 @mcp_server.tool()
 @meta_api_tool
+async def get_cpa(object_id: str, access_token: Optional[str] = None,
+                 time_range: Union[str, Dict[str, str]] = "last_30d", 
+                 breakdown: str = "", level: str = "ad", 
+                 limit: int = 25, after: str = "") -> str:
+    """
+    Get CPA (Cost Per Action) and CPL (Cost Per Lead) metrics for campaigns, ad sets, or ads.
+    Shows how much you're paying for each conversion action (purchases, leads, registrations, etc.).
+    Returns: spend, actions, cost_per_action_type, and calculated CPA for each action type.
+    
+    Example: CPA of $5.50 means each conversion costs $5.50.
+    
+    Args:
+        object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
+        access_token: Meta API access token (optional - will use cached token if not provided)
+        time_range: {TIME_RANGE_DOCS}
+        breakdown: {BREAKDOWN_DOCS}
+        level: Level of aggregation (ad, adset, campaign, account)
+        limit: Maximum number of results per page (default: 25)
+        after: Pagination cursor for next page
+    """.format(TIME_RANGE_DOCS=TIME_RANGE_DOCS, BREAKDOWN_DOCS=BREAKDOWN_DOCS)
+    
+    fields = "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,actions,cost_per_action_type"
+    result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
+    
+    # Parse and enhance with calculated CPA for each action type
+    try:
+        data = json.loads(result)
+        if "data" in data and isinstance(data["data"], list):
+            for item in data["data"]:
+                spend = float(item.get("spend", 0))
+                actions = item.get("actions", [])
+                
+                if spend > 0 and actions:
+                    calculated_cpa = {}
+                    for action in actions:
+                        action_type = action.get("action_type", "unknown")
+                        action_count = int(action.get("value", 0))
+                        if action_count > 0:
+                            cpa = spend / action_count
+                            calculated_cpa[action_type] = round(cpa, 2)
+                    
+                    if calculated_cpa:
+                        item["calculated_cpa"] = calculated_cpa
+        
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return result
+
+
+@mcp_server.tool()
+@meta_api_tool
+async def get_cac(object_id: str, access_token: Optional[str] = None,
+                 time_range: Union[str, Dict[str, str]] = "last_30d", 
+                 breakdown: str = "", level: str = "ad", 
+                 limit: int = 25, after: str = "") -> str:
+    """
+    Get CAC (Customer Acquisition Cost) metrics for campaigns, ad sets, or ads.
+    CAC specifically tracks the cost to acquire a new customer (purchase conversion).
+    Returns: spend, purchase actions, and calculated CAC.
+    
+    Example: CAC of $25.00 means each new customer costs $25.00 to acquire.
+    
+    Args:
+        object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
+        access_token: Meta API access token (optional - will use cached token if not provided)
+        time_range: {TIME_RANGE_DOCS}
+        breakdown: {BREAKDOWN_DOCS}
+        level: Level of aggregation (ad, adset, campaign, account)
+        limit: Maximum number of results per page (default: 25)
+        after: Pagination cursor for next page
+    """.format(TIME_RANGE_DOCS=TIME_RANGE_DOCS, BREAKDOWN_DOCS=BREAKDOWN_DOCS)
+    
+    fields = "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,actions,cost_per_action_type"
+    result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
+    
+    # Parse and calculate CAC specifically for purchases
+    try:
+        data = json.loads(result)
+        if "data" in data and isinstance(data["data"], list):
+            for item in data["data"]:
+                spend = float(item.get("spend", 0))
+                actions = item.get("actions", [])
+                
+                # Find purchase actions
+                purchase_count = 0
+                for action in actions:
+                    if action.get("action_type") in ["purchase", "omni_purchase"]:
+                        purchase_count += int(action.get("value", 0))
+                
+                if spend > 0 and purchase_count > 0:
+                    cac = spend / purchase_count
+                    item["customer_acquisition_cost"] = round(cac, 2)
+                    item["customers_acquired"] = purchase_count
+                elif purchase_count > 0:
+                    item["customers_acquired"] = purchase_count
+        
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return result
+
+
+@mcp_server.tool()
+@meta_api_tool
+async def get_conversion_rate(object_id: str, access_token: Optional[str] = None,
+                              time_range: Union[str, Dict[str, str]] = "last_30d", 
+                              breakdown: str = "", level: str = "ad", 
+                              limit: int = 25, after: str = "") -> str:
+    """
+    Get CVR (Conversion Rate) metrics for campaigns, ad sets, or ads.
+    Shows the percentage of clicks that result in conversions.
+    Returns: clicks, conversions, and calculated conversion rate.
+    
+    Example: CVR of 2.5% means 2.5 out of every 100 clicks result in a conversion.
+    
+    Args:
+        object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
+        access_token: Meta API access token (optional - will use cached token if not provided)
+        time_range: {TIME_RANGE_DOCS}
+        breakdown: {BREAKDOWN_DOCS}
+        level: Level of aggregation (ad, adset, campaign, account)
+        limit: Maximum number of results per page (default: 25)
+        after: Pagination cursor for next page
+    """.format(TIME_RANGE_DOCS=TIME_RANGE_DOCS, BREAKDOWN_DOCS=BREAKDOWN_DOCS)
+    
+    fields = "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,clicks,actions,conversions"
+    result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
+    
+    # Parse and calculate conversion rate
+    try:
+        data = json.loads(result)
+        if "data" in data and isinstance(data["data"], list):
+            for item in data["data"]:
+                clicks = int(item.get("clicks", 0))
+                
+                # Get conversion count (Meta sometimes provides this directly)
+                conversion_count = 0
+                if "conversions" in item:
+                    conversions = item.get("conversions", [])
+                    for conv in conversions:
+                        conversion_count += int(conv.get("value", 0))
+                
+                # If no conversions field, count from actions
+                if conversion_count == 0 and "actions" in item:
+                    actions = item.get("actions", [])
+                    for action in actions:
+                        # Count conversion actions (purchases, leads, etc.)
+                        if action.get("action_type") in ["purchase", "omni_purchase", "lead", "complete_registration", "add_to_cart"]:
+                            conversion_count += int(action.get("value", 0))
+                
+                # Calculate CVR
+                if clicks > 0 and conversion_count > 0:
+                    cvr = (conversion_count / clicks) * 100
+                    item["conversion_rate_percent"] = round(cvr, 2)
+                    item["total_conversions"] = conversion_count
+                elif conversion_count > 0:
+                    item["total_conversions"] = conversion_count
+        
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return result
+
+
+@mcp_server.tool()
+@meta_api_tool
+async def get_revenue(object_id: str, access_token: Optional[str] = None,
+                     time_range: Union[str, Dict[str, str]] = "last_30d", 
+                     breakdown: str = "", level: str = "ad", 
+                     limit: int = 25, after: str = "") -> str:
+    """
+    Get Revenue and Purchase Value metrics for campaigns, ad sets, or ads.
+    Shows total revenue generated from purchase conversions.
+    Returns: action_values (purchase value), spend, and calculated profit.
+    
+    Example: Revenue of $5,000 with spend of $1,000 = $4,000 profit.
+    
+    Args:
+        object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
+        access_token: Meta API access token (optional - will use cached token if not provided)
+        time_range: {TIME_RANGE_DOCS}
+        breakdown: {BREAKDOWN_DOCS}
+        level: Level of aggregation (ad, adset, campaign, account)
+        limit: Maximum number of results per page (default: 25)
+        after: Pagination cursor for next page
+    """.format(TIME_RANGE_DOCS=TIME_RANGE_DOCS, BREAKDOWN_DOCS=BREAKDOWN_DOCS)
+    
+    fields = "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,action_values,actions"
+    result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
+    
+    # Parse and calculate revenue/profit
+    try:
+        data = json.loads(result)
+        if "data" in data and isinstance(data["data"], list):
+            for item in data["data"]:
+                spend = float(item.get("spend", 0))
+                
+                # Extract purchase revenue from action_values
+                revenue = 0
+                purchase_count = 0
+                
+                if "action_values" in item:
+                    action_values = item.get("action_values", [])
+                    for action in action_values:
+                        if action.get("action_type") in ["purchase", "omni_purchase"]:
+                            revenue += float(action.get("value", 0))
+                
+                # Get purchase count
+                if "actions" in item:
+                    actions = item.get("actions", [])
+                    for action in actions:
+                        if action.get("action_type") in ["purchase", "omni_purchase"]:
+                            purchase_count += int(action.get("value", 0))
+                
+                # Add calculated fields
+                if revenue > 0:
+                    item["total_revenue"] = round(revenue, 2)
+                    item["profit"] = round(revenue - spend, 2)
+                    item["profit_margin_percent"] = round(((revenue - spend) / revenue) * 100, 2) if revenue > 0 else 0
+                    
+                    if purchase_count > 0:
+                        item["average_order_value"] = round(revenue / purchase_count, 2)
+                        item["purchase_count"] = purchase_count
+        
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return result
+
+
+@mcp_server.tool()
+@meta_api_tool
 async def get_performance_overview(object_id: str, access_token: Optional[str] = None,
                                   time_range: Union[str, Dict[str, str]] = "last_30d", 
                                   breakdown: str = "", level: str = "ad", 
