@@ -9,6 +9,62 @@ import base64
 import datetime
 
 
+def _convert_cents_to_currency(value) -> float:
+    """
+    Convert Meta API monetary values from cents to major currency unit.
+    Facebook Ads API returns monetary values in cents to avoid floating-point precision issues.
+    
+    Args:
+        value: String or numeric value in cents (e.g., "11051" = 110.51 CHF)
+    
+    Returns:
+        Float value in major currency unit (e.g., 110.51)
+    """
+    try:
+        return round(float(value) / 100, 2)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _convert_monetary_fields(data: dict) -> dict:
+    """
+    Convert all monetary fields in Meta API response from cents to major currency unit.
+    
+    Handles:
+    - spend, cpc, cpm: Direct monetary values
+    - cost_per_action_type: Array of action costs
+    - action_values: Array of action values (revenue)
+    
+    Args:
+        data: API response data dictionary
+    
+    Returns:
+        Modified dictionary with converted monetary values
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    # Convert top-level monetary fields
+    monetary_fields = ["spend", "cpc", "cpm"]
+    for field in monetary_fields:
+        if field in data and data[field]:
+            data[field] = _convert_cents_to_currency(data[field])
+    
+    # Convert cost_per_action_type array
+    if "cost_per_action_type" in data and isinstance(data["cost_per_action_type"], list):
+        for action in data["cost_per_action_type"]:
+            if isinstance(action, dict) and "value" in action:
+                action["value"] = _convert_cents_to_currency(action["value"])
+    
+    # Convert action_values array (revenue)
+    if "action_values" in data and isinstance(data["action_values"], list):
+        for action in data["action_values"]:
+            if isinstance(action, dict) and "value" in action:
+                action["value"] = _convert_cents_to_currency(action["value"])
+    
+    return data
+
+
 # Shared helper function for all insights tools
 async def _get_insights_data(object_id: str, fields: str, access_token: Optional[str] = None,
                              time_range: Union[str, Dict[str, str]] = "last_30d", 
@@ -50,6 +106,12 @@ async def _get_insights_data(object_id: str, fields: str, access_token: Optional
         params["after"] = after
     
     data = await make_api_request(endpoint, access_token, params)
+    
+    # Convert monetary values from cents to major currency unit
+    if isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+        for item in data["data"]:
+            _convert_monetary_fields(item)
+    
     return json.dumps(data, indent=2)
 
 
@@ -126,6 +188,9 @@ async def get_spend(object_id: str, access_token: Optional[str] = None,
     """
     Get spend data for campaigns, ad sets, or ads.
     Returns: campaign/adset/ad names, total spend, impressions, and clicks.
+    
+    NOTE: All monetary values are automatically converted from cents to major currency unit
+    (e.g., 11051 cents becomes 110.51 CHF/USD/EUR).
     
     Args:
         object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
@@ -226,6 +291,9 @@ async def get_roas(object_id: str, access_token: Optional[str] = None,
     
     Example: ROAS of 3.5 means you earned $3.50 for every $1.00 spent.
     
+    NOTE: All monetary values (spend, revenue) are automatically converted from cents to 
+    major currency unit (e.g., 11051 cents becomes 110.51 CHF/USD/EUR).
+    
     Args:
         object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
         access_token: Meta API access token (optional - will use cached token if not provided)
@@ -240,6 +308,7 @@ async def get_roas(object_id: str, access_token: Optional[str] = None,
     result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
     
     # Parse the result and add calculated ROAS if not present
+    # Note: spend and action_values are already converted from cents to major currency unit
     try:
         data = json.loads(result)
         if "data" in data and isinstance(data["data"], list):
@@ -248,7 +317,7 @@ async def get_roas(object_id: str, access_token: Optional[str] = None,
                 if "purchase_roas" not in item or not item.get("purchase_roas"):
                     spend = float(item.get("spend", 0))
                     if spend > 0 and "action_values" in item:
-                        # Find purchase value from action_values
+                        # Find purchase value from action_values (already converted to major currency)
                         action_values = item.get("action_values", [])
                         purchase_value = 0
                         for action in action_values:
@@ -279,6 +348,9 @@ async def get_cpa(object_id: str, access_token: Optional[str] = None,
     
     Example: CPA of $5.50 means each conversion costs $5.50.
     
+    NOTE: All monetary values (spend, CPA) are automatically converted from cents to 
+    major currency unit (e.g., 11051 cents becomes 110.51 CHF/USD/EUR).
+    
     Args:
         object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
         access_token: Meta API access token (optional - will use cached token if not provided)
@@ -293,6 +365,7 @@ async def get_cpa(object_id: str, access_token: Optional[str] = None,
     result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
     
     # Parse and enhance with calculated CPA for each action type
+    # Note: spend is already converted from cents to major currency unit
     try:
         data = json.loads(result)
         if "data" in data and isinstance(data["data"], list):
@@ -330,6 +403,9 @@ async def get_cac(object_id: str, access_token: Optional[str] = None,
     
     Example: CAC of $25.00 means each new customer costs $25.00 to acquire.
     
+    NOTE: All monetary values (spend, CAC) are automatically converted from cents to 
+    major currency unit (e.g., 11051 cents becomes 110.51 CHF/USD/EUR).
+    
     Args:
         object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
         access_token: Meta API access token (optional - will use cached token if not provided)
@@ -344,6 +420,7 @@ async def get_cac(object_id: str, access_token: Optional[str] = None,
     result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
     
     # Parse and calculate CAC specifically for purchases
+    # Note: spend is already converted from cents to major currency unit
     try:
         data = json.loads(result)
         if "data" in data and isinstance(data["data"], list):
@@ -443,6 +520,9 @@ async def get_revenue(object_id: str, access_token: Optional[str] = None,
     
     Example: Revenue of $5,000 with spend of $1,000 = $4,000 profit.
     
+    NOTE: All monetary values (spend, revenue, profit) are automatically converted from cents 
+    to major currency unit (e.g., 11051 cents becomes 110.51 CHF/USD/EUR).
+    
     Args:
         object_id: ID of the campaign, ad set, ad or account (e.g., 'act_123456')
         access_token: Meta API access token (optional - will use cached token if not provided)
@@ -457,13 +537,14 @@ async def get_revenue(object_id: str, access_token: Optional[str] = None,
     result = await _get_insights_data(object_id, fields, access_token, time_range, breakdown, level, limit, after)
     
     # Parse and calculate revenue/profit
+    # Note: spend and action_values are already converted from cents to major currency unit
     try:
         data = json.loads(result)
         if "data" in data and isinstance(data["data"], list):
             for item in data["data"]:
                 spend = float(item.get("spend", 0))
                 
-                # Extract purchase revenue from action_values
+                # Extract purchase revenue from action_values (already converted to major currency)
                 revenue = 0
                 purchase_count = 0
                 
